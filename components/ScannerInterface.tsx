@@ -32,12 +32,37 @@ const ScannerInterface: React.FC<ScannerProps> = ({ onScanComplete, onCancel }) 
     }
   };
 
+  const getSimulationResult = async (): Promise<any> => {
+     await new Promise(r => setTimeout(r, 2000));
+     return {
+       productName: "Энергетический напиток (Demo)",
+       status: 'danger',
+       score: '2.1',
+       verdict: 'ВЫСОКОЕ СОДЕРЖАНИЕ САХАРА И СТИМУЛЯТОРОВ',
+       details: 'Продукт представляет серьезную нагрузку на сердечно-сосудистую систему и поджелудочную железу. Крайне не рекомендуется детям.',
+       nutrients: [
+         { label: 'Сахар', value: '11g', status: 'bad', percentage: 95 },
+         { label: 'Кофеин', value: '32mg', status: 'bad', percentage: 80 },
+         { label: 'Таурин', value: '240mg', status: 'neutral', percentage: 40 },
+         { label: 'Витамин B', value: '1.2mg', status: 'good', percentage: 20 }
+       ],
+       additives: [
+         { code: "E129", name: "Красный очаровательный AC", riskLevel: "high", description: "Синтетический краситель. Запрещен в ряде стран Европы. Может вызывать СДВГ у детей." },
+         { code: "E211", name: "Бензоат натрия", riskLevel: "medium", description: "Консервант. В сочетании с витамином С может образовывать канцероген бензол." },
+         { code: "Сахар", name: "Сахарный сироп", riskLevel: "high", description: "Провоцирует выброс инсулина, риск ожирения." },
+         { code: "E330", name: "Лимонная кислота", riskLevel: "low", description: "Безопасный регулятор кислотности природного происхождения." }
+       ],
+       pros: ["Бодрящий эффект (кратковременный)"],
+       cons: ["Критический уровень сахара", "Опасные красители", "Риск гастрита"]
+     };
+  };
+
   const performScan = async () => {
     setAppState(AppState.SCANNING);
     setProgress(0);
     
     // Animation Logic
-    const messages = ["Инициализация Gemini 3...", "OCR Чтение этикетки...", "Поиск E-добавок...", "Анализ токсичности...", "Расчет Health Score...", "Формирование отчета..."];
+    const messages = ["Инициализация Gemini 3 Flash...", "OCR Чтение этикетки...", "Поиск E-добавок...", "Анализ токсичности...", "Расчет Health Score...", "Формирование отчета..."];
     let step = 0;
     const msgInterval = setInterval(() => {
       if (step < messages.length) setStatusMessage(messages[step++]);
@@ -50,106 +75,85 @@ const ScannerInterface: React.FC<ScannerProps> = ({ onScanComplete, onCancel }) 
       let resultData: any;
 
       if (apiKey) {
-         const ai = new GoogleGenAI({ apiKey });
-         const model = 'gemini-3-flash-preview'; 
-         
-         const parts: any[] = [];
-         
-         // PROFESSIONAL PROMPT ENGINEERING
-         const systemInstruction = `
-           Ты — эксперт-технолог пищевой промышленности и токсиколог с 20-летним стажем. Твоя задача — провести строгий, научно обоснованный анализ состава продукта.
-           
-           СТРОГИЕ ПРАВИЛА:
-           1. Язык ответа: Русский.
-           2. Тон: Профессиональный, объективный, но понятный потребителю.
-           3. Идентификация: Если видишь E-код (например, E202), обязательно расшифруй его. Если видишь химическое название, укажи его статус безопасности.
-           4. Оценка риска: Опирайся на стандарты ВОЗ и EFSA. Будь строг к сахару, трансжирам и спорным консервантам.
-           5. Health Score: Рассчитывай честно от 0.0 (яд) до 10.0 (идеально чисто). Снижай баллы за: сахар (сильно), пальмовое масло, нитриты, искусственные красители.
-         `;
+         try {
+             const ai = new GoogleGenAI({ apiKey });
+             const model = 'gemini-3-flash-preview'; 
+             
+             const parts: any[] = [];
+             
+             const systemInstruction = `
+               Ты — эксперт-технолог пищевой промышленности и токсиколог.
+               Проанализируй состав продукта.
+               Верни JSON с полями: productName (string), status (safe/warning/danger), score (0.0-10.0 string), verdict (caps short string), details (string), nutrients (array of {label, value, status, percentage}), additives (array of {code, name, riskLevel, description}), pros (string array), cons (string array).
+             `;
 
-         if (imagePreview) {
-           const base64Data = imagePreview.split(',')[1];
-           parts.push({ inlineData: { mimeType: 'image/jpeg', data: base64Data }});
-           parts.push({ text: "Проанализируй состав на этом фото. Верни строго валидный JSON." });
-         } else {
-           parts.push({ text: `Проанализируй этот состав продукта: ${ingredients || "Сахар, мука, пальмовое масло, E102"}. Верни строго валидный JSON.` });
-         }
+             if (imagePreview) {
+               const base64Data = imagePreview.split(',')[1];
+               const mimeType = imagePreview.match(/data:(.*);base64/)?.[1] || 'image/jpeg';
+               
+               parts.push({ inlineData: { mimeType, data: base64Data }});
+               parts.push({ text: "Проанализируй состав на этом фото. Верни строго валидный JSON." });
+             } else {
+               parts.push({ text: `Проанализируй этот состав продукта: ${ingredients || "Сахар, мука, пальмовое масло, E102"}. Верни строго валидный JSON.` });
+             }
 
-         const response = await ai.models.generateContent({
-            model,
-            contents: { parts },
-            config: {
-              systemInstruction: systemInstruction,
-              responseMimeType: "application/json",
-              responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                  productName: { type: Type.STRING, description: "Название продукта (бренд + тип). Если не видно, определи категорию (напр. 'Йогурт питьевой')" },
-                  status: { type: Type.STRING, enum: ["safe", "warning", "danger"] },
-                  score: { type: Type.STRING, description: "Число от 0.0 до 10.0 (например '4.2')" },
-                  verdict: { type: Type.STRING, description: "Короткий вердикт капсом (3-4 слова), например 'ВЫСОКИЙ РИСК ДИАБЕТА' или 'БЕЗОПАСНЫЙ НАТУРАЛЬНЫЙ СОСТАВ'" },
-                  details: { type: Type.STRING, description: "Краткое резюме анализа (2-3 предложения). Почему такая оценка?" },
-                  nutrients: {
-                    type: Type.ARRAY,
-                    items: {
-                      type: Type.OBJECT,
-                      properties: {
-                        label: { type: Type.STRING, description: "Название нутриента (Белки/Жиры/Сахар)" },
-                        value: { type: Type.STRING, description: "Значение с единицами (12г)" },
-                        status: { type: Type.STRING, enum: ["good", "bad", "neutral"] },
-                        percentage: { type: Type.NUMBER, description: "Число 0-100 для прогресс-бара" }
-                      }
-                    }
-                  },
-                  additives: {
-                    type: Type.ARRAY,
-                    items: {
-                       type: Type.OBJECT,
-                       properties: {
-                         code: { type: Type.STRING, description: "Код добавки (Exxx) или 'Нет кода'"},
-                         name: { type: Type.STRING, description: "Общепринятое название ингредиента"},
-                         riskLevel: { type: Type.STRING, enum: ["low", "medium", "high"]},
-                         description: { type: Type.STRING, description: "Научное объяснение вреда или пользы (1 предложение)"}
-                       }
-                    }
-                  },
-                  pros: { type: Type.ARRAY, items: { type: Type.STRING }},
-                  cons: { type: Type.ARRAY, items: { type: Type.STRING }}
-                },
-                required: ["productName", "status", "score", "verdict", "details", "nutrients", "additives", "pros", "cons"]
-              }
-            }
-         });
-         
-         if (response.text) {
-            resultData = JSON.parse(response.text);
-         } else {
-            throw new Error("Empty response");
+             const response = await ai.models.generateContent({
+                model,
+                contents: { parts },
+                config: {
+                  systemInstruction: systemInstruction,
+                  responseMimeType: "application/json",
+                  responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                      productName: { type: Type.STRING, description: "Название продукта" },
+                      status: { type: Type.STRING, enum: ["safe", "warning", "danger"] },
+                      score: { type: Type.STRING, description: "Число 0.0-10.0" },
+                      verdict: { type: Type.STRING, description: "Короткий вердикт" },
+                      details: { type: Type.STRING, description: "Резюме анализа" },
+                      nutrients: {
+                        type: Type.ARRAY,
+                        items: {
+                          type: Type.OBJECT,
+                          properties: {
+                            label: { type: Type.STRING },
+                            value: { type: Type.STRING },
+                            status: { type: Type.STRING, enum: ["good", "bad", "neutral"] },
+                            percentage: { type: Type.NUMBER }
+                          }
+                        }
+                      },
+                      additives: {
+                        type: Type.ARRAY,
+                        items: {
+                           type: Type.OBJECT,
+                           properties: {
+                             code: { type: Type.STRING },
+                             name: { type: Type.STRING },
+                             riskLevel: { type: Type.STRING, enum: ["low", "medium", "high"]},
+                             description: { type: Type.STRING }
+                           }
+                        }
+                      },
+                      pros: { type: Type.ARRAY, items: { type: Type.STRING }},
+                      cons: { type: Type.ARRAY, items: { type: Type.STRING }}
+                    },
+                    required: ["productName", "status", "score", "verdict", "details", "nutrients", "additives", "pros", "cons"]
+                  }
+                }
+             });
+             
+             if (response.text) {
+                resultData = JSON.parse(response.text);
+             } else {
+                throw new Error("Empty AI response");
+             }
+         } catch (apiError) {
+             console.warn("Gemini API Failed, switching to simulation mode:", apiError);
+             resultData = await getSimulationResult();
          }
       } else {
-         // Fallback Simulation for Demo
-         await new Promise(r => setTimeout(r, 4500));
-         resultData = {
-           productName: "Энергетический напиток (Demo)",
-           status: 'danger',
-           score: '2.1',
-           verdict: 'ВЫСОКОЕ СОДЕРЖАНИЕ САХАРА И СТИМУЛЯТОРОВ',
-           details: 'Продукт представляет серьезную нагрузку на сердечно-сосудистую систему и поджелудочную железу. Крайне не рекомендуется детям.',
-           nutrients: [
-             { label: 'Сахар', value: '11g', status: 'bad', percentage: 95 },
-             { label: 'Кофеин', value: '32mg', status: 'bad', percentage: 80 },
-             { label: 'Таурин', value: '240mg', status: 'neutral', percentage: 40 },
-             { label: 'Витамин B', value: '1.2mg', status: 'good', percentage: 20 }
-           ],
-           additives: [
-             { code: "E129", name: "Красный очаровательный AC", riskLevel: "high", description: "Синтетический краситель. Запрещен в ряде стран Европы. Может вызывать СДВГ у детей." },
-             { code: "E211", name: "Бензоат натрия", riskLevel: "medium", description: "Консервант. В сочетании с витамином С может образовывать канцероген бензол." },
-             { code: "Сахар", name: "Сахарный сироп", riskLevel: "high", description: "Провоцирует выброс инсулина, риск ожирения." },
-             { code: "E330", name: "Лимонная кислота", riskLevel: "low", description: "Безопасный регулятор кислотности природного происхождения." }
-           ],
-           pros: ["Бодрящий эффект (кратковременный)"],
-           cons: ["Критический уровень сахара", "Опасные красители", "Риск гастрита"]
-         };
+         resultData = await getSimulationResult();
       }
 
       clearInterval(msgInterval);
@@ -164,9 +168,10 @@ const ScannerInterface: React.FC<ScannerProps> = ({ onScanComplete, onCancel }) 
       }, 500);
 
     } catch (e) {
-      console.error(e);
+      console.error("Critical Scanner Error:", e);
       setAppState(AppState.IDLE);
-      alert("Ошибка AI. Попробуйте еще раз.");
+      // Removed alert to prevent UI blocking.
+      // Reset logic implicitly handled by state remaining in IDLE or user retrying.
       clearInterval(msgInterval);
       clearInterval(progInterval);
     }

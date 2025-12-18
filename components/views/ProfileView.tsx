@@ -20,7 +20,7 @@ export const ProfileView: React.FC<{ user: User; onLogout: () => void; onUpdateU
   const removeAllergy = (tag: string) => {
     onUpdateUser({
       ...user,
-      allergies: user.allergies.filter(a => a !== tag)
+      allergies: user.allergies.filter((a: string) => a !== tag)
     });
   };
 

@@ -57,3 +57,24 @@ export enum AppState {
   SCANNING = 'SCANNING',
   RESULT = 'RESULT',
 }
+
+// --- LEGACY / COMPATIBILITY TYPES ---
+// These ensure that if old files are accidentally compiled, they don't break the build.
+export interface Attachment {
+  id: string;
+  url: string;
+  type: 'image' | 'video' | 'file';
+}
+
+export interface GenerateRequest {
+  prompt: string;
+  attachments?: Attachment[];
+}
+
+export interface GenerateResult {
+  text: string;
+}
+
+export interface Limits {
+  maxTokens: number;
+}
