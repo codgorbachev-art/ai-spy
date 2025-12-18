@@ -18,14 +18,14 @@ const ButtonGlow: React.FC<ButtonGlowProps> = ({
   const baseStyles = "relative px-8 py-4 rounded-xl font-medium text-sm tracking-wider uppercase transition-all duration-300 overflow-hidden group";
   
   const variants = {
-    primary: "bg-transparent text-white border border-brand-cyan/30 hover:border-brand-cyan/60 hover:shadow-[0_0_20px_rgba(0,240,255,0.3)]",
+    primary: "bg-transparent text-white border border-brand-cyan/30 hover:border-brand-cyan/60",
     secondary: "bg-white/5 text-white/80 border border-white/10 hover:bg-white/10 hover:border-white/20"
   };
 
   return (
     <motion.button
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.96 }}
+      whileHover={{ scale: 1.02, boxShadow: variant === 'primary' ? "0 0 15px rgba(0, 240, 255, 0.3)" : "none" }}
+      whileTap={{ scale: 0.96, boxShadow: variant === 'primary' ? "0 0 25px rgba(0, 240, 255, 0.6)" : "0 0 10px rgba(255,255,255,0.2)" }}
       className={`${baseStyles} ${variants[variant]} ${className}`}
       disabled={isLoading}
       {...props}
@@ -35,12 +35,19 @@ const ButtonGlow: React.FC<ButtonGlowProps> = ({
         {children}
       </span>
       
-      {/* Click Pulse Effect */}
+      {/* Click Pulse Effect - Inner Flash */}
       <motion.div 
-        className="absolute inset-0 z-0 bg-white/10 rounded-xl"
-        initial={{ opacity: 0, scale: 0.8 }}
-        whileTap={{ opacity: 1, scale: 1 }}
+        className="absolute inset-0 z-0 bg-white/20 rounded-xl"
+        initial={{ opacity: 0 }}
+        whileTap={{ opacity: 1 }}
         transition={{ duration: 0.1 }}
+      />
+      
+      {/* Click Ripple Ring */}
+      <motion.div
+        className="absolute inset-0 rounded-xl border-2 border-white/40 z-10"
+        initial={{ scale: 0.9, opacity: 0 }}
+        whileTap={{ scale: 1.4, opacity: [0.8, 0], transition: { duration: 0.4, ease: "easeOut" } }}
       />
       
       {/* Glow effect gradient */}

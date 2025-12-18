@@ -17,9 +17,9 @@ declare global {
 function Particles(props: any) {
   const ref = useRef<THREE.Points>(null);
   
-  // Generate random particles
+  // Generate random particles - OPTIMIZED COUNT
   const [positions, colors] = useMemo(() => {
-    const count = 2000;
+    const count = 1200; // Reduced from 2000 for mobile performance
     const positions = new Float32Array(count * 3);
     const colors = new Float32Array(count * 3);
     const color1 = new THREE.Color('#00f0ff');
@@ -68,12 +68,21 @@ function Particles(props: any) {
 const GlowBackground: React.FC = () => {
   return (
     <div className="fixed inset-0 -z-10 bg-[#050505]">
-      {/* Static gradients for fallback/ambience */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-brand-purple/20 rounded-full blur-[120px]" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-brand-cyan/20 rounded-full blur-[120px]" />
+      {/* Static gradients for fallback/ambience - Efficient CSS rendering */}
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-brand-purple/20 rounded-full blur-[120px] opacity-70" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-brand-cyan/20 rounded-full blur-[120px] opacity-70" />
       
-      {/* Three.js Canvas */}
-      <Canvas camera={{ position: [0, 0, 5], fov: 60 }}>
+      {/* Three.js Canvas - OPTIMIZED */}
+      <Canvas 
+        camera={{ position: [0, 0, 5], fov: 60 }}
+        dpr={[1, 1.5]} // Clamp pixel ratio to save GPU on high-res mobile screens
+        gl={{ 
+          antialias: false, // Disable AA for background particles (huge perf win)
+          powerPreference: "high-performance",
+          alpha: true
+        }}
+        performance={{ min: 0.5 }} // Allow degrading quality if framerate drops
+      >
         <fog attach="fog" args={['#050505', 5, 15]} />
         <ambientLight intensity={0.5} />
         <Particles />

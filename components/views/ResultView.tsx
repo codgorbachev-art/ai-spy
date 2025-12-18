@@ -3,8 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ScanResult, Additive, StoryLayoutSpec } from '../../types';
 import ButtonGlow from '../ui/ButtonGlow';
 import { Check, ChevronDown, ChevronUp, AlertTriangle, ShieldCheck, Leaf, Zap, Brain, X, Info, Activity, Share2, Download, Sparkles, Instagram } from 'lucide-react';
-// @ts-ignore
-import html2canvas from 'html2canvas';
 import { GoogleGenAI } from "@google/genai";
 
 export const ResultView: React.FC<{ result: ScanResult; onBack: () => void; onScanNew: () => void }> = ({ result, onBack, onScanNew }) => {
@@ -29,6 +27,14 @@ export const ResultView: React.FC<{ result: ScanResult; onBack: () => void; onSc
   const normalizedRadius = radius - stroke * 2;
   const circumference = normalizedRadius * 2 * Math.PI;
   const strokeDashoffset = circumference - (scoreNum / 10) * circumference; 
+
+  const getRiskAdvice = (level: string) => {
+    switch (level) {
+      case 'high': return "Рекомендуется исключить или минимизировать употребление. Может оказывать негативное влияние на обмен веществ или ЖКТ.";
+      case 'medium': return "Употреблять с осторожностью, особенно людям с чувствительным пищеварением или склонностью к аллергии.";
+      case 'low': default: return "Считается безопасным для большинства людей при соблюдении разумных порций.";
+    }
+  };
 
   const generateAIStory = async () => {
      if (storySpec) return; // Already generated
@@ -168,6 +174,9 @@ Return ONLY valid JSON.
   const handleDownloadImage = async () => {
     if (!shareRef.current) return;
     try {
+      // Dynamic import to save initial bundle size
+      const html2canvas = (await import('html2canvas')).default;
+      
       const canvas = await html2canvas(shareRef.current, {
         backgroundColor: null,
         scale: 2, 
@@ -555,7 +564,7 @@ Return ONLY valid JSON.
                         exit={{ height: 0, opacity: 0 }}
                         className="bg-black/20"
                       >
-                         <div className="p-6 text-sm text-gray-300 border-t border-white/5">
+                         <div className="p-6 text-sm border-t border-white/5">
                            
                            {/* Detailed Hazard Spectrum (Expanded View) */}
                            <div className="mb-6 relative pt-6 pb-2">
@@ -581,29 +590,29 @@ Return ONLY valid JSON.
                                </motion.div>
                            </div>
 
-                           <div className="flex items-start gap-4 mb-4">
-                              <div className={`p-3 rounded-xl shrink-0 ${
-                                  item.riskLevel === 'high' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 
-                                  item.riskLevel === 'medium' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' : 
-                                  'bg-green-500/10 text-green-400 border border-green-500/20'
-                              }`}>
-                                {item.riskLevel === 'high' ? <AlertTriangle className="w-6 h-6"/> : 
-                                 item.riskLevel === 'medium' ? <Info className="w-6 h-6"/> : 
-                                 <ShieldCheck className="w-6 h-6"/>}
+                           <div className="grid gap-4">
+                              <div className="flex gap-4">
+                                  <div className={`mt-1 p-2 rounded-lg shrink-0 ${
+                                      item.riskLevel === 'high' ? 'bg-red-500/20 text-red-400' : 
+                                      item.riskLevel === 'medium' ? 'bg-yellow-500/20 text-yellow-400' : 
+                                      'bg-green-500/20 text-green-400'
+                                  }`}>
+                                     <Info className="w-5 h-5" />
+                                  </div>
+                                  <div>
+                                     <h4 className="font-bold text-white mb-1">О компоненте</h4>
+                                     <p className="text-gray-300 leading-relaxed">{item.description}</p>
+                                  </div>
                               </div>
-                              <div>
-                                 <h4 className={`font-bold text-base mb-1 ${
-                                    item.riskLevel === 'high' ? 'text-red-400' : 
-                                    item.riskLevel === 'medium' ? 'text-yellow-400' : 
-                                    'text-green-400'
-                                 }`}>
-                                   {item.riskLevel === 'high' ? 'Высокая токсичность' : 
-                                    item.riskLevel === 'medium' ? 'Потенциальный аллерген' : 
-                                    'Одобрено к употреблению'}
-                                 </h4>
-                                 <p className="leading-relaxed text-gray-300">
-                                   {item.description}
-                                 </p>
+
+                              <div className="flex gap-4">
+                                  <div className="mt-1 p-2 rounded-lg shrink-0 bg-blue-500/20 text-blue-400">
+                                     <Brain className="w-5 h-5" />
+                                  </div>
+                                  <div>
+                                     <h4 className="font-bold text-white mb-1">Мнение AI эксперта</h4>
+                                     <p className="text-gray-400 leading-relaxed">{getRiskAdvice(item.riskLevel)}</p>
+                                  </div>
                               </div>
                            </div>
 
