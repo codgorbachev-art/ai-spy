@@ -1,0 +1,8 @@
+{
+  "name": "Purescan Ai",
+  "description": "Продвинутый веб-интерфейс для AI-анализа состава продуктов. Glass UI, Framer Motion и WebGL эффекты.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
