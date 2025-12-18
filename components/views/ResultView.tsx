@@ -1,16 +1,18 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ScanResult, Additive } from '../../types';
+import { ScanResult, Additive, StoryLayoutSpec } from '../../types';
 import ButtonGlow from '../ui/ButtonGlow';
-import { Check, ChevronDown, ChevronUp, AlertTriangle, ShieldCheck, Leaf, Zap, Brain, X, Info, Activity, Share2, Download } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, AlertTriangle, ShieldCheck, Leaf, Zap, Brain, X, Info, Activity, Share2, Download, Sparkles, Instagram } from 'lucide-react';
 // @ts-ignore
 import html2canvas from 'html2canvas';
+import { GoogleGenAI } from "@google/genai";
 
 export const ResultView: React.FC<{ result: ScanResult; onBack: () => void; onScanNew: () => void }> = ({ result, onBack, onScanNew }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'ingredients' | 'nutrients'>('overview');
   const [expandedAdditive, setExpandedAdditive] = useState<string | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [isGeneratingShare, setIsGeneratingShare] = useState(false);
+  const [storySpec, setStorySpec] = useState<StoryLayoutSpec | null>(null);
   const shareRef = useRef<HTMLDivElement>(null);
 
   const scoreNum = parseFloat(result.score);
@@ -28,62 +30,106 @@ export const ResultView: React.FC<{ result: ScanResult; onBack: () => void; onSc
   const circumference = normalizedRadius * 2 * Math.PI;
   const strokeDashoffset = circumference - (scoreNum / 10) * circumference; 
 
+  const generateAIStory = async () => {
+     if (storySpec) return; // Already generated
+     setIsGeneratingShare(true);
+
+     try {
+       const apiKey = process.env.API_KEY;
+       if (!apiKey) throw new Error("No API Key");
+
+       const ai = new GoogleGenAI({ apiKey });
+       const model = 'gemini-3-flash-preview';
+
+       const reportText = JSON.stringify(result);
+       
+       const prompt = `
+“HEALTH PRODUCT STORY BUILDER — 9:16 POP, Deterministic, Report-to-Story”
+0) РОЛЬ И ЦЕЛЬ
+Ты — “Health Product Story Builder”. Ты получаешь финальный отчёт (строго структурированный) из предыдущего пайплайна и создаёшь одну Story-картинку для соцсетей: 9:16, Full HD.
+
+1) ВХОДНЫЕ ДАННЫЕ
+REPORT_TEXT: ${reportText}
+PRODUCT_MOCKUP: Фото пользователя предоставлено (используй placeholder если нет).
+LOCALE_LANGUAGE: Русский.
+OUTPUT_MODE: story_image_spec.
+
+2) ДЕТЕРМИНИРОВАННЫЙ АНАЛИЗ ОТЧЁТА (2 прохода + консенсус)
+Извлеки Score, VerdictCategory (GOOD >= 8.0, MEDIUM 6.0-7.9, BAD < 6.0), ShortVerdictLine, TopProsOrRisks, KeyTriggerWords.
+Укороти пункты до 3-6 слов. Запрет на мед. диагнозы.
+
+3) ДЕТЕРМИНИРОВАННЫЙ ВИЗУАЛЬНЫЙ КЛЮЧ
+Цвета: GOOD (Green/Mint), MEDIUM (Yellow/Amber), BAD (Red/Coral).
+
+6) СЛОГАН (2 СЛОВА)
+Выбери детерминированно из списков (Чистый выбор, Сомнительно окей, Сахарный вайб и т.д.) на основе триггеров.
+
+7) ВЫВОД:
+ВЕРНИ СТРОГО ВАЛИДНЫЙ JSON объект с ключом "spec" содержащим поля:
+score (string), verdictCategory (GOOD/MEDIUM/BAD), shortVerdict (string), bulletsTitle (string e.g. "ПЛЮСЫ"), bullets (array of strings), slogan (string).
+Цвета определи сам и верни hex коды в colors: { background: string, glow: string, accent: string }.
+`;
+      
+       const response = await ai.models.generateContent({
+         model,
+         contents: { role: 'user', parts: [{ text: prompt }] },
+         config: { responseMimeType: "application/json" }
+       });
+
+       if (response.text) {
+         const json = JSON.parse(response.text);
+         if (json.spec) {
+            setStorySpec(json.spec);
+         } else {
+            // Fallback if structure varies slightly
+             setStorySpec(json);
+         }
+       }
+
+     } catch (e) {
+       console.error("Story Gen Error:", e);
+       // Fallback manual spec if AI fails
+       setStorySpec({
+         score: result.score,
+         verdictCategory: scoreNum >= 8 ? 'GOOD' : scoreNum >= 6 ? 'MEDIUM' : 'BAD',
+         shortVerdict: result.verdict,
+         bulletsTitle: scoreNum >= 6 ? 'ГЛАВНОЕ' : 'РИСКИ',
+         bullets: result.pros?.slice(0, 3) || [],
+         slogan: 'PURESCAN AI',
+         colors: {
+           background: scoreNum >= 8 ? '#064e3b' : scoreNum >= 6 ? '#713f12' : '#7f1d1d',
+           glow: scoreColor,
+           accent: '#ffffff'
+         }
+       });
+     } finally {
+       setIsGeneratingShare(false);
+     }
+  };
+
   const handleDownloadImage = async () => {
     if (!shareRef.current) return;
-    setIsGeneratingShare(true);
     try {
       const canvas = await html2canvas(shareRef.current, {
-        backgroundColor: '#050505',
-        scale: 2, // Retina quality
-        useCORS: true
+        backgroundColor: null,
+        scale: 2, 
+        useCORS: true,
+        allowTaint: true,
       });
       
       const link = document.createElement('a');
-      link.download = `purescan-${result.productName || 'result'}.png`;
+      link.download = `purescan-${result.productName || 'story'}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
     } catch (err) {
       console.error("Share generation failed", err);
-      alert("Не удалось создать изображение. Попробуйте скриншот.");
-    } finally {
-      setIsGeneratingShare(false);
+      alert("Не удалось создать изображение.");
     }
   };
 
-  const handleShareNative = async () => {
-    if (!shareRef.current || !navigator.share) {
-      handleDownloadImage();
-      return;
-    }
-    
-    setIsGeneratingShare(true);
-    try {
-      const canvas = await html2canvas(shareRef.current, {
-        backgroundColor: '#050505',
-        scale: 2
-      });
-      
-      canvas.toBlob(async (blob) => {
-        if (!blob) return;
-        const file = new File([blob], 'purescan-result.png', { type: 'image/png' });
-        
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({
-            files: [file],
-            title: 'Purescan Result',
-            text: `Я проверил ${result.productName} в Purescan AI! Мой результат: ${result.score}/10.`
-          });
-        } else {
-          // Fallback to download
-          handleDownloadImage();
-        }
-      }, 'image/png');
-      
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsGeneratingShare(false);
-    }
+  const openShare = () => {
+    setShowShareModal(true);
+    generateAIStory();
   };
 
   return (
@@ -92,109 +138,114 @@ export const ResultView: React.FC<{ result: ScanResult; onBack: () => void; onSc
       {/* SHARE MODAL */}
       <AnimatePresence>
         {showShareModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl">
             <motion.div 
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="relative w-full max-w-sm"
+              className="relative w-full max-w-sm h-[85vh] flex flex-col"
             >
               <button 
                 onClick={() => setShowShareModal(false)}
-                className="absolute -top-12 right-0 p-2 text-white/50 hover:text-white"
+                className="absolute -top-12 right-0 p-2 text-white/50 hover:text-white z-50"
               >
                 <X className="w-8 h-8" />
               </button>
 
               {/* THE STORY CARD (Rendered for capture) */}
-              <div 
-                ref={shareRef}
-                className="w-full aspect-[9/16] rounded-3xl overflow-hidden relative bg-[#050505] border border-white/10 shadow-2xl flex flex-col"
-              >
-                {/* Background FX */}
-                <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-brand-purple/20 to-transparent" />
-                <div className="absolute bottom-0 right-0 w-full h-1/2 bg-gradient-to-t from-brand-cyan/20 to-transparent" />
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-white/5 rounded-full blur-[80px]" />
+              <div className="flex-1 flex items-center justify-center overflow-hidden">
+                {isGeneratingShare && !storySpec ? (
+                   <div className="text-center space-y-4">
+                      <Sparkles className="w-12 h-12 text-brand-cyan animate-pulse mx-auto" />
+                      <p className="text-brand-cyan font-mono animate-pulse">GENERATING STORY...</p>
+                   </div>
+                ) : (
+                  <div 
+                    ref={shareRef}
+                    className="w-full aspect-[9/16] relative bg-[#050505] overflow-hidden shadow-2xl flex flex-col font-sans select-none"
+                    style={{
+                      background: `linear-gradient(160deg, ${storySpec?.colors.background || '#000'} 0%, #000 100%)`
+                    }}
+                  >
+                    {/* Background Pattern */}
+                    <div className="absolute inset-0 opacity-20" 
+                         style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '20px 20px' }} 
+                    />
+                    
+                    {/* Glow Frame */}
+                    <div className="absolute inset-0 border-[8px] border-opacity-50" style={{ borderColor: storySpec?.colors.glow }} />
+                    <div className="absolute inset-0 shadow-[inset_0_0_100px_rgba(0,0,0,0.5)]" />
 
-                {/* Header */}
-                <div className="relative z-10 p-6 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-gradient-to-tr from-brand-cyan to-brand-purple rounded-lg flex items-center justify-center font-bold text-black">P</div>
-                    <span className="font-bold tracking-widest text-sm">PURESCAN</span>
-                  </div>
-                  <div className="px-3 py-1 bg-white/10 rounded-full text-[10px] font-bold border border-white/10 uppercase">
-                    AI Analysis
-                  </div>
-                </div>
+                    {/* Product Mockup (Floating) */}
+                    <div className="absolute bottom-32 -left-12 w-64 h-64 z-10 transform rotate-12">
+                       {result.imageUrl ? (
+                         <img src={result.imageUrl} className="w-full h-full object-cover rounded-3xl shadow-2xl border-2 border-white/20 transform hover:scale-105 transition-transform" style={{ boxShadow: `0 20px 50px ${storySpec?.colors.glow}40` }} />
+                       ) : (
+                         <div className="w-full h-full bg-white/10 backdrop-blur-md rounded-3xl border border-white/20 flex items-center justify-center">
+                            <Leaf className="w-20 h-20 text-white/50" />
+                         </div>
+                       )}
+                    </div>
 
-                {/* Content */}
-                <div className="relative z-10 flex-1 flex flex-col items-center justify-center p-8 text-center">
-                  <h2 className="text-2xl font-bold mb-6 line-clamp-2">{result.productName || 'Неизвестный продукт'}</h2>
-                  
-                  {/* Big Gauge */}
-                  <div className="relative w-48 h-48 mb-8">
-                     <svg className="w-full h-full transform -rotate-90">
-                       <circle cx="96" cy="96" r="88" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="12" />
-                       <circle 
-                         cx="96" cy="96" r="88" fill="none" stroke={scoreColor} strokeWidth="12" strokeLinecap="round"
-                         strokeDasharray={2 * Math.PI * 88}
-                         strokeDashoffset={(2 * Math.PI * 88) * (1 - scoreNum / 10)}
-                         className="drop-shadow-[0_0_20px_rgba(0,0,0,0.5)]"
-                       />
-                     </svg>
-                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                       <span className="text-7xl font-bold tracking-tighter">{result.score}</span>
-                       <span className="text-xs uppercase tracking-widest text-gray-400 mt-2">Health Score</span>
-                     </div>
-                  </div>
+                    {/* Content Layer */}
+                    <div className="relative z-20 flex-1 flex flex-col p-8 pt-16">
+                       
+                       {/* Header Score */}
+                       <div className="flex flex-col items-center mb-6">
+                          <h1 className="text-8xl font-black tracking-tighter text-white drop-shadow-2xl" style={{ textShadow: `0 0 30px ${storySpec?.colors.glow}` }}>
+                             {storySpec?.score}
+                          </h1>
+                          <div className="px-4 py-1 rounded-full text-xs font-bold uppercase tracking-[0.2em] bg-white text-black mt-2">
+                             Health Score
+                          </div>
+                       </div>
 
-                  {/* Verdict Badge */}
-                  <div className={`px-6 py-3 rounded-2xl border backdrop-blur-md mb-8 ${
-                    result.status === 'safe' ? 'bg-green-500/10 border-green-500/30 text-green-400' :
-                    result.status === 'warning' ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400' :
-                    'bg-red-500/10 border-red-500/30 text-red-400'
-                  }`}>
-                    <div className="font-bold text-lg uppercase tracking-wide flex items-center gap-2">
-                      {result.status === 'safe' ? <ShieldCheck /> : <AlertTriangle />}
-                      {result.verdict}
+                       {/* Verdict */}
+                       <div className="text-center mb-10 px-4">
+                          <p className="text-xl font-bold text-white uppercase leading-tight drop-shadow-md">
+                            {storySpec?.shortVerdict}
+                          </p>
+                       </div>
+
+                       {/* Bullets */}
+                       <div className="ml-auto w-3/4 space-y-4 mb-auto">
+                          <h3 className="text-xs font-bold uppercase tracking-widest opacity-70 mb-2 border-b border-white/20 pb-1" style={{ color: storySpec?.colors.accent }}>
+                             {storySpec?.bulletsTitle}
+                          </h3>
+                          {storySpec?.bullets.map((b, i) => (
+                             <div key={i} className="flex items-start gap-2 bg-black/20 backdrop-blur-sm p-2 rounded-lg border border-white/5">
+                                <Check className="w-4 h-4 shrink-0" style={{ color: storySpec?.colors.glow }} />
+                                <span className="text-sm font-bold text-white leading-tight">{b}</span>
+                             </div>
+                          ))}
+                       </div>
+
+                       {/* Slogan Badge */}
+                       <div className="absolute bottom-12 right-0 left-0 flex justify-center z-30">
+                          <div className="transform rotate-[-2deg] bg-white text-black font-black text-2xl uppercase italic py-2 px-6 shadow-xl border-4 border-black" style={{ boxShadow: `10px 10px 0px ${storySpec?.colors.glow}` }}>
+                             {storySpec?.slogan}
+                          </div>
+                       </div>
+
+                       {/* Footer */}
+                       <div className="absolute bottom-4 w-full text-center left-0">
+                          <p className="text-[8px] uppercase tracking-widest opacity-50 text-white">
+                             Purescan AI Analysis &bull; Not Medical Advice
+                          </p>
+                       </div>
                     </div>
                   </div>
-
-                  {/* Footer Stats */}
-                  <div className="grid grid-cols-2 gap-4 w-full">
-                     <div className="bg-white/5 p-3 rounded-xl border border-white/10">
-                        <div className="text-[10px] text-gray-400 uppercase">Вредные E-шки</div>
-                        <div className="font-bold text-xl">{criticalRisks.length > 0 ? criticalRisks.length : '0'}</div>
-                     </div>
-                     <div className="bg-white/5 p-3 rounded-xl border border-white/10">
-                        <div className="text-[10px] text-gray-400 uppercase">Безопасность</div>
-                        <div className="font-bold text-xl">{result.status === 'safe' ? '100%' : result.status === 'warning' ? '70%' : '30%'}</div>
-                     </div>
-                  </div>
-                </div>
-
-                {/* Footer URL */}
-                <div className="relative z-10 p-6 text-center border-t border-white/10 bg-black/20">
-                   <div className="text-xs text-brand-cyan">purescan.ai</div>
-                </div>
+                )}
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-3 mt-6">
+              <div className="flex gap-3 mt-4">
                 <ButtonGlow 
-                   onClick={handleShareNative} 
-                   isLoading={isGeneratingShare}
-                   className="flex-1 !py-3 !text-xs"
+                   onClick={handleDownloadImage} 
+                   className="flex-1 !py-3 !text-xs !bg-brand-cyan/20 !border-brand-cyan/40"
+                   disabled={!storySpec}
                 >
-                  <Share2 className="w-4 h-4 mr-2" /> Поделиться
-                </ButtonGlow>
-                <ButtonGlow 
-                   variant="secondary"
-                   onClick={handleDownloadImage}
-                   isLoading={isGeneratingShare}
-                   className="flex-1 !py-3 !text-xs !bg-black/50"
-                >
-                  <Download className="w-4 h-4 mr-2" /> Скачать
+                  <Instagram className="w-4 h-4 mr-2" /> Скачать для Stories
                 </ButtonGlow>
               </div>
 
@@ -253,7 +304,7 @@ export const ResultView: React.FC<{ result: ScanResult; onBack: () => void; onSc
           <div className="flex flex-wrap gap-3 justify-center md:justify-start">
              <ButtonGlow variant="secondary" onClick={onBack} className="!px-5 !py-2 !text-xs !bg-white/5 !text-white/80 !border-white/10">Назад</ButtonGlow>
              <ButtonGlow onClick={onScanNew} className="!px-6 !py-2 !text-xs !text-white !border-brand-cyan/30">Новый скан</ButtonGlow>
-             <ButtonGlow onClick={() => setShowShareModal(true)} className="!px-5 !py-2 !text-xs !bg-brand-purple/20 !border-brand-purple/30 !text-brand-purple hover:!bg-brand-purple/30">
+             <ButtonGlow onClick={openShare} className="!px-5 !py-2 !text-xs !bg-brand-purple/20 !border-brand-purple/30 !text-brand-purple hover:!bg-brand-purple/30">
                <Share2 className="w-4 h-4 mr-2 inline" /> Поделиться
              </ButtonGlow>
           </div>

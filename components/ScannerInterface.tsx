@@ -62,11 +62,11 @@ const ScannerInterface: React.FC<ScannerProps> = ({ onScanComplete, onCancel }) 
     setProgress(0);
     
     // Animation Logic
-    const messages = ["Инициализация Gemini 3 Flash...", "OCR Чтение этикетки...", "Поиск E-добавок...", "Анализ токсичности...", "Расчет Health Score...", "Формирование отчета..."];
+    const messages = ["Загрузка Мастер-Промпта...", "Мульти-скан (Pass A, B, C)...", "Нормализация состава...", "Проверка 5 источников...", "Расчет штрафов...", "Формирование JSON..."];
     let step = 0;
     const msgInterval = setInterval(() => {
       if (step < messages.length) setStatusMessage(messages[step++]);
-    }, 800);
+    }, 1000);
 
     const progInterval = setInterval(() => setProgress(p => p < 90 ? p + 2 : p), 100);
 
@@ -81,10 +81,89 @@ const ScannerInterface: React.FC<ScannerProps> = ({ onScanComplete, onCancel }) 
              
              const parts: any[] = [];
              
-             const systemInstruction = `
-               Ты — эксперт-технолог пищевой промышленности и токсиколог.
-               Проанализируй состав продукта.
-               Верни JSON с полями: productName (string), status (safe/warning/danger), score (0.0-10.0 string), verdict (caps short string), details (string), nutrients (array of {label, value, status, percentage}), additives (array of {code, name, riskLevel, description}), pros (string array), cons (string array).
+             // --- MASTER PROMPT INTEGRATION ---
+             const masterPrompt = `
+“LABEL & INGREDIENTS AUDITOR — Deterministic, Evidence-Gated, 5-Step Verification”
+0) РОЛЬ, ГРАНИЦЫ И ПРИНЦИПЫ
+
+Ты — экспертная система анализа продуктовой этикетки. Ты действуешь как:
+
+клинический нутрициолог, иммунолог, токсиколог, специалист по пищевой безопасности, пищевым добавкам (E-номера), канцерогенам, красителям, эмульгаторам, консервантам, подсластителям и поведенческим аспектам ЗОЖ;
+
+редактор-аналитик, который формирует понятный потребителю отчёт.
+
+Ключевые требования:
+
+Детерминированность: при одинаковом входе (тот же продукт, тот же состав) выдавай одинаковый результат — без творческих вариаций, с фиксированными шаблонами формулировок, одинаковым порядком блоков и одинаковыми правилами округления.
+
+Только факты: запрещены домыслы, “скорее всего”, “возможно” без источников. Любое утверждение о рисках/влиянии допускается только если прошло проверку источников (см. раздел 3).
+
+Evidence-gating: если не можешь подтвердить факт достаточным числом источников, пометь его как “НЕ ПОДТВЕРЖДЕНО (недостаточно источников)” и не используй для итоговых выводов/оценки.
+
+Разделение “опасность” и “риск”: не путай hazard и risk; учитывай, что влияние зависит от дозы и контекста потребления.
+
+Не медицинская консультация: в конце добавь стандартный дисклеймер, но не размывай им фактические выводы.
+
+1) ВХОДНЫЕ ДАННЫЕ (ПРИХОДЯТ ИЗ ПРИЛОЖЕНИЯ)
+
+Тебе передаются:
+IMAGE(S): одно или несколько фото этикетки (состав, КБЖУ, аллергены, производитель).
+LOCALE: РФ/ЕС.
+OUTPUT_MODE: JSON API (Strict).
+
+2) ОБЯЗАТЕЛЬНЫЙ ПРОЦЕСС (5-СТУПЕНЧАТАЯ ВЕРИФИКАЦИЯ)
+
+Ты всегда выполняешь шаги строго по порядку. Никаких пропусков.
+
+Шаг 1 — Мульти-скан (3 прохода распознавания) + консенсус
+Сделай 3 независимых прохода извлечения текста и структуры:
+Pass A: “как есть” (прямая интерпретация).
+Pass B: с исправлением типичных OCR-ошибок (О/0, И/1, E/Е, латиница↔кириллица, “Е-” vs “E-”, запятые/точки).
+Pass C: контекстный разбор (разделение “Состав”, “Пищевая ценность”, “Аллергены”, “Условия хранения”, “Предупреждения”).
+Далее создай консенсус-версию.
+
+Шаг 2 — Нормализация и индексация состава (строго детерминированно)
+Приведи к нижнему регистру, убери лишние пробелы, единый формат E-номеров (E330).
+
+Шаг 3 — 5-источниковая проверка каждого “значимого утверждения”
+Для каждого факта собери Evidence[1..5] (ВОЗ, Роспотребнадзор, Codex Alimentarius, EFSA, FDA).
+Если совпадение сути факта в 5/5 источниках -> CONFIRMED_5OF5.
+Если 4/5 -> PARTIAL_4OF5.
+Если <=3/5 -> NOT_CONFIRMED.
+
+Шаг 4 — Оценка продукта 0–10 (детерминированная формула)
+Score = clamp(0, 10, 10 - Penalties + Bonuses)
+
+Штрафы (Penalties) — только по подтверждённым фактам:
+P1. Состав/категория: Высокий сахар (0.3-1.5), Высокая соль (0.3-1.2), Транс-жиры (0.5-2.0).
+P2. Ультра-переработанность: >=5 добавок (0.3), >=7 (0.7), >=10 (1.2).
+P3. Уязвимые предупреждения: Энергетик (0.4-1.0), Спец. предупреждения (0.2-0.6).
+
+Бонусы (Bonuses):
+Короткий состав (<=5) без добавок: +0.3..+1.0
+Явные полезные компоненты (клетчатка, белок): +0.2..+1.0
+Низкий сахар/соль/жир: +0.2..+1.0
+
+Шаг 5 — Генерация отчёта
+
+3) КЛАССИФИКАЦИЯ ИНГРЕДИЕНТОВ
+ПОЛЕЗНЫЙ, НЕЙТРАЛЬНЫЙ, НЕЖЕЛАТЕЛЬНЫЙ, ПОТЕНЦИАЛЬНО ВРЕДНЫЙ, ВРЕДНЫЙ.
+
+4) ПРАВИЛА ДЛЯ E-НОМЕРОВ
+Код, Название, Функция, Доказательная оценка, Риски.
+
+--- ТЕХНИЧЕСКАЯ ИНСТРУКЦИЯ ДЛЯ JSON API ---
+Ты выполняешь весь анализ выше, но результат возвращаешь СТРОГО в формате JSON, который ожидает фронтенд приложения.
+Трансформируй свой отчет следующим образом:
+1. "Score" -> поле 'score' (string, one decimal).
+2. "Короткий вердикт" -> поле 'verdict' (UPPERCASE string).
+3. "Общая рекомендация" и "Идентификация продукта" -> объедини в поле 'details'.
+4. "Пищевые добавки" -> массив 'additives'. Поле 'riskLevel' выводи как 'low'/'medium'/'high' на основе твоей классификации (Вредный/Потенциально вредный -> high, Нежелательный -> medium, Нейтральный/Полезный -> low).
+5. "Анализ каждого ингредиента" -> Используй это для генерации массивов 'pros' (плюсы) и 'cons' (минусы).
+6. "КБЖУ" -> массив 'nutrients'.
+7. Определи поле 'status' на основе Score: >=8.0 -> 'safe', 4.0-7.9 -> 'warning', <4.0 -> 'danger'.
+
+ВЕРНИ ТОЛЬКО ВАЛИДНЫЙ JSON.
              `;
 
              if (imagePreview) {
@@ -92,25 +171,25 @@ const ScannerInterface: React.FC<ScannerProps> = ({ onScanComplete, onCancel }) 
                const mimeType = imagePreview.match(/data:(.*);base64/)?.[1] || 'image/jpeg';
                
                parts.push({ inlineData: { mimeType, data: base64Data }});
-               parts.push({ text: "Проанализируй состав на этом фото. Верни строго валидный JSON." });
+               parts.push({ text: "Проанализируй состав на этом фото согласно Мастер-Промпту. Верни JSON." });
              } else {
-               parts.push({ text: `Проанализируй этот состав продукта: ${ingredients || "Сахар, мука, пальмовое масло, E102"}. Верни строго валидный JSON.` });
+               parts.push({ text: `Проанализируй этот состав продукта согласно Мастер-Промпту: ${ingredients || "Сахар, мука, пальмовое масло, E102"}. Верни JSON.` });
              }
 
              const response = await ai.models.generateContent({
                 model,
                 contents: { parts },
                 config: {
-                  systemInstruction: systemInstruction,
+                  systemInstruction: masterPrompt,
                   responseMimeType: "application/json",
                   responseSchema: {
                     type: Type.OBJECT,
                     properties: {
-                      productName: { type: Type.STRING, description: "Название продукта" },
+                      productName: { type: Type.STRING, description: "Название продукта и бренд" },
                       status: { type: Type.STRING, enum: ["safe", "warning", "danger"] },
                       score: { type: Type.STRING, description: "Число 0.0-10.0" },
-                      verdict: { type: Type.STRING, description: "Короткий вердикт" },
-                      details: { type: Type.STRING, description: "Резюме анализа" },
+                      verdict: { type: Type.STRING, description: "Короткий вердикт (Caps)" },
+                      details: { type: Type.STRING, description: "Общее резюме и рекомендации" },
                       nutrients: {
                         type: Type.ARRAY,
                         items: {
@@ -131,7 +210,7 @@ const ScannerInterface: React.FC<ScannerProps> = ({ onScanComplete, onCancel }) 
                              code: { type: Type.STRING },
                              name: { type: Type.STRING },
                              riskLevel: { type: Type.STRING, enum: ["low", "medium", "high"]},
-                             description: { type: Type.STRING }
+                             description: { type: Type.STRING, description: "Функция и доказанные риски" }
                            }
                         }
                       },
@@ -163,15 +242,14 @@ const ScannerInterface: React.FC<ScannerProps> = ({ onScanComplete, onCancel }) 
       setTimeout(() => {
         onScanComplete({
           id: Date.now().toString(),
-          ...resultData
+          ...resultData,
+          imageUrl: imagePreview // Pass image to result for Story generation
         });
       }, 500);
 
     } catch (e) {
       console.error("Critical Scanner Error:", e);
       setAppState(AppState.IDLE);
-      // Removed alert to prevent UI blocking.
-      // Reset logic implicitly handled by state remaining in IDLE or user retrying.
       clearInterval(msgInterval);
       clearInterval(progInterval);
     }

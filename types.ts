@@ -1,3 +1,4 @@
+
 export type ViewState = 'LANDING' | 'AUTH' | 'DASHBOARD' | 'SCAN' | 'RESULT' | 'SUBSCRIPTION' | 'PROFILE';
 
 export type SubscriptionPlan = 'FREE' | 'PRO' | 'ULTRA';
@@ -50,6 +51,21 @@ export interface ScanResult {
   additives: Additive[];
   pros: string[];
   cons: string[];
+  imageUrl?: string | null; // Added for Story Generation
+}
+
+export interface StoryLayoutSpec {
+  score: string;
+  verdictCategory: 'GOOD' | 'MEDIUM' | 'BAD';
+  shortVerdict: string;
+  bulletsTitle: string;
+  bullets: string[];
+  slogan: string;
+  colors: {
+    background: string;
+    glow: string;
+    accent: string;
+  };
 }
 
 export enum AppState {
@@ -59,7 +75,6 @@ export enum AppState {
 }
 
 // --- LEGACY / COMPATIBILITY TYPES ---
-// These ensure that if old files are accidentally compiled, they don't break the build.
 export interface Attachment {
   id: string;
   url: string;
