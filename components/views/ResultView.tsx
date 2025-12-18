@@ -44,30 +44,88 @@ export const ResultView: React.FC<{ result: ScanResult; onBack: () => void; onSc
        const reportText = JSON.stringify(result);
        
        const prompt = `
-“HEALTH PRODUCT STORY BUILDER — 9:16 POP, Deterministic, Report-to-Story”
-0) РОЛЬ И ЦЕЛЬ
-Ты — “Health Product Story Builder”. Ты получаешь финальный отчёт (строго структурированный) из предыдущего пайплайна и создаёшь одну Story-картинку для соцсетей: 9:16, Full HD.
+PROMPT V2 (вставлять целиком)
 
-1) ВХОДНЫЕ ДАННЫЕ
-REPORT_TEXT: ${reportText}
-PRODUCT_MOCKUP: Фото пользователя предоставлено (используй placeholder если нет).
-LOCALE_LANGUAGE: Русский.
-OUTPUT_MODE: story_image_spec.
+Роль: ты — дизайнер-генератор Stories для health-продуктов. На вход ты получаешь итоговый отчёт анализа состава. На выход ты даёшь ОДНУ спецификацию для генерации одной Story-картинки (9:16, 1080×1920).
+Ключевое требование: одинаковый отчёт → одинаковая Story. Никаких случайных элементов, никаких вариаций формулировок, один и тот же порядок блоков.
 
-2) ДЕТЕРМИНИРОВАННЫЙ АНАЛИЗ ОТЧЁТА (2 прохода + консенсус)
-Извлеки Score, VerdictCategory (GOOD >= 8.0, MEDIUM 6.0-7.9, BAD < 6.0), ShortVerdictLine, TopProsOrRisks, KeyTriggerWords.
-Укороти пункты до 3-6 слов. Запрет на мед. диагнозы.
+Вход:
+REPORT_TEXT: финальный отчёт (структура 1–10).
+PRODUCT_MOCKUP: (A) PNG мокап/вырезка продукта или (B) фото продукта или (C) отсутствует.
+LANG: язык (RU).
 
-3) ДЕТЕРМИНИРОВАННЫЙ ВИЗУАЛЬНЫЙ КЛЮЧ
-Цвета: GOOD (Green/Mint), MEDIUM (Yellow/Amber), BAD (Red/Coral).
+ШАГ 1 — Извлеки данные из отчёта (строго)
+Найди и зафиксируй:
+Score (X.X / 10.0)
+VerdictLine (короткий вердикт из отчёта, 1 строка)
+VerdictCategory:
+GOOD если Score ≥ 8.0
+MEDIUM если 6.0 ≤ Score < 8.0
+BAD если Score < 6.0
 
-6) СЛОГАН (2 СЛОВА)
-Выбери детерминированно из списков (Чистый выбор, Сомнительно окей, Сахарный вайб и т.д.) на основе триггеров.
+MainPoints:
+GOOD: выбери ровно 3 преимущества
+MEDIUM: выбери ровно 2 плюса + 2 риска (итого 4)
+BAD: выбери ровно 4 риска
+Правила для пунктов:
+Каждый пункт 3–6 слов, без длинных фраз.
+Только факты из отчёта. Ничего не придумывай.
+Иконки:
+плюсы начинаются с “✓”
+риски начинаются с “⚠”
 
-7) ВЫВОД:
-ВЕРНИ СТРОГО ВАЛИДНЫЙ JSON объект с ключом "spec" содержащим поля:
-score (string), verdictCategory (GOOD/MEDIUM/BAD), shortVerdict (string), bulletsTitle (string e.g. "ПЛЮСЫ"), bullets (array of strings), slogan (string).
-Цвета определи сам и верни hex коды в colors: { background: string, glow: string, accent: string }.
+ШАГ 2 — Цветовой стиль (строго)
+GOOD: зелёная палитра, мягкий mint-градиент + green glow по краям.
+MEDIUM: тёплая янтарная палитра, песочно-бежевый→мягкий amber-градиент + amber glow по краям.
+BAD: кораллово-красная палитра, светлый розово-коралловый градиент + red glow по краям.
+Запрет: не использовать серый “пыльный” фон как основной.
+
+ШАГ 3 — Композиция (фиксированная)
+Картинка 1080×1920, safe-areas соблюдены.
+Слои сверху вниз:
+Background: мягкий градиент + лёгкий pop-паттерн (точки/волны) 3–6% opacity.
+Edge Glow: подсветка по краям (цвет по категории), тонкая рамка 6–10px.
+Product Mockup: снизу слева, аккуратный cutout, лёгкая тень, небольшое “floating”.
+Score (главный элемент): по центру крупно “X.X” и рядом маленькое “/10”.
+Score Label: под оценкой, pill-плашка: “ОЦЕНКА СОСТАВА”.
+Headline: одна строка (коротко): либо “ПЛЮСЫ”, либо “ПЛЮСЫ / РИСКИ”, либо “РИСКИ”.
+MainPoints block: 3–4 коротких пункта, аккуратные карточки одинакового стиля.
+Bottom Slogan (2 слова): крупная стикер-плашка по центру снизу.
+Micro disclaimer: очень мелко: “Оценка по составу. Не медсовет.”
+
+ШАГ 4 — Слоган (2 слова) детерминированно
+Выбери слоган ТОЛЬКО из списка по категории:
+GOOD: “Чистый выбор”, “Зелёный свет”, “Можно брать”
+MEDIUM: “Есть нюансы”, “Умеренно можно”, “Смотри состав”
+BAD: “Сладкий разгон”, “Химозный флекс”, “Печаль состава”
+Правило выбора:
+Если в рисках есть сахар/сироп → BAD слоган “Сладкий разгон”, иначе “Печаль состава”.
+Для MEDIUM всегда “Есть нюансы”.
+Для GOOD всегда “Можно брать”.
+
+REPORT_TEXT = """${reportText}"""
+PRODUCT_MOCKUP = """User image provided"""
+LANG = "RU"
+
+--- TECHNICAL INSTRUCTION FOR JSON OUTPUT ---
+Although you are a Story Designer, the application needs the output in RAW JSON format to render the UI.
+Transform your "LAYOUT_SPEC" into this exact JSON structure:
+{
+  "spec": {
+    "score": "X.X",
+    "verdictCategory": "GOOD" | "MEDIUM" | "BAD",
+    "shortVerdict": "VerdictLine string",
+    "bulletsTitle": "Headline string (e.g. РИСКИ)",
+    "bullets": ["✓ Point 1", "⚠ Point 2"],
+    "slogan": "Slogan string",
+    "colors": {
+       "background": "#HexCodeForGradientStart", 
+       "glow": "#HexCodeForEdgeGlow", 
+       "accent": "#HexCodeForAccent"
+    }
+  }
+}
+Return ONLY valid JSON.
 `;
       
        const response = await ai.models.generateContent({
@@ -191,33 +249,43 @@ score (string), verdictCategory (GOOD/MEDIUM/BAD), shortVerdict (string), bullet
                     <div className="relative z-20 flex-1 flex flex-col p-8 pt-16">
                        
                        {/* Header Score */}
-                       <div className="flex flex-col items-center mb-6">
+                       <div className="flex flex-col items-center mb-2">
                           <h1 className="text-8xl font-black tracking-tighter text-white drop-shadow-2xl" style={{ textShadow: `0 0 30px ${storySpec?.colors.glow}` }}>
                              {storySpec?.score}
                           </h1>
-                          <div className="px-4 py-1 rounded-full text-xs font-bold uppercase tracking-[0.2em] bg-white text-black mt-2">
-                             Health Score
+                          <div className="flex items-baseline gap-1">
+                             <span className="text-xl font-bold text-white/50">/10</span>
                           </div>
+                       </div>
+                       
+                       {/* Score Label Pill */}
+                       <div className="flex justify-center mb-8">
+                         <div className="px-4 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] bg-white text-black">
+                             ОЦЕНКА СОСТАВА
+                         </div>
                        </div>
 
                        {/* Verdict */}
-                       <div className="text-center mb-10 px-4">
-                          <p className="text-xl font-bold text-white uppercase leading-tight drop-shadow-md">
+                       <div className="text-center mb-8 px-4">
+                          <p className="text-lg font-bold text-white uppercase leading-tight drop-shadow-md">
                             {storySpec?.shortVerdict}
                           </p>
                        </div>
 
                        {/* Bullets */}
-                       <div className="ml-auto w-3/4 space-y-4 mb-auto">
+                       <div className="ml-auto w-3/4 space-y-3 mb-auto">
                           <h3 className="text-xs font-bold uppercase tracking-widest opacity-70 mb-2 border-b border-white/20 pb-1" style={{ color: storySpec?.colors.accent }}>
                              {storySpec?.bulletsTitle}
                           </h3>
-                          {storySpec?.bullets.map((b, i) => (
-                             <div key={i} className="flex items-start gap-2 bg-black/20 backdrop-blur-sm p-2 rounded-lg border border-white/5">
-                                <Check className="w-4 h-4 shrink-0" style={{ color: storySpec?.colors.glow }} />
-                                <span className="text-sm font-bold text-white leading-tight">{b}</span>
-                             </div>
-                          ))}
+                          {storySpec?.bullets.map((b, i) => {
+                             const isRisk = b.includes('⚠');
+                             return (
+                               <div key={i} className={`flex items-start gap-2 backdrop-blur-sm p-2 rounded-lg border border-white/5 ${isRisk ? 'bg-red-500/10' : 'bg-black/20'}`}>
+                                  {isRisk ? <AlertTriangle className="w-4 h-4 shrink-0 text-red-400" /> : <Check className="w-4 h-4 shrink-0 text-green-400" />}
+                                  <span className="text-sm font-bold text-white leading-tight">{b.replace(/[✓⚠]/g, '')}</span>
+                               </div>
+                             );
+                          })}
                        </div>
 
                        {/* Slogan Badge */}
@@ -230,7 +298,7 @@ score (string), verdictCategory (GOOD/MEDIUM/BAD), shortVerdict (string), bullet
                        {/* Footer */}
                        <div className="absolute bottom-4 w-full text-center left-0">
                           <p className="text-[8px] uppercase tracking-widest opacity-50 text-white">
-                             Purescan AI Analysis &bull; Not Medical Advice
+                             Оценка по составу. Не медсовет.
                           </p>
                        </div>
                     </div>
@@ -448,7 +516,13 @@ score (string), verdictCategory (GOOD/MEDIUM/BAD), shortVerdict (string), bullet
                       
                       <div className="flex-1">
                         <div className="flex justify-between items-start mb-1">
-                            <div className="font-bold text-white text-lg flex items-center gap-2">
+                            {/* UPDATED: Name with Color Indicator */}
+                            <div className="font-bold text-white text-lg flex items-center gap-3">
+                                {(item.riskLevel === 'high' || item.riskLevel === 'medium') && (
+                                   <div className={`w-3 h-3 rounded-full shrink-0 shadow-[0_0_8px_currentColor] ${
+                                      item.riskLevel === 'high' ? 'bg-red-500 text-red-500' : 'bg-yellow-500 text-yellow-500'
+                                   }`} />
+                                )}
                                 {item.name} 
                             </div>
                             
