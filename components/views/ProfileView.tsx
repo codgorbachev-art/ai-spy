@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { User } from '../../types';
-import { LogOut, Send, Lock, Moon, Sun, Bell } from 'lucide-react';
+import { LogOut, Send, Lock, Moon, Sun } from 'lucide-react';
 
 export const ProfileView: React.FC<{ user: User; onLogout: () => void; onUpdateUser: (u: User) => void }> = ({ user, onLogout, onUpdateUser }) => {
   const [newAllergy, setNewAllergy] = useState('');
@@ -33,158 +33,113 @@ export const ProfileView: React.FC<{ user: User; onLogout: () => void; onUpdateU
       }
     };
     onUpdateUser(updatedUser);
+    
+    // Apply dark mode immediately
+    if (key === 'darkMode') {
+      if (updatedUser.settings.darkMode) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    }
   };
 
   return (
-    <div className="max-w-2xl mx-auto w-full glass-panel p-8 rounded-3xl transition-colors duration-300">
-      
-      {/* HEADER */}
-      <div className="flex items-center gap-6 mb-10 pb-6 border-b border-gray-200 dark:border-white/10">
-        <div className="relative">
-          <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-brand-cyan to-brand-purple flex items-center justify-center text-3xl font-bold shadow-[0_5px_20px_rgba(112,0,255,0.3)] overflow-hidden border-2 border-white/50 dark:border-white/20">
-            {user.photoUrl ? (
-              <img src={user.photoUrl} alt="User" className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-white">{user.name.charAt(0)}</span>
-            )}
-          </div>
-          <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-white dark:border-[#050505] shadow-sm" title="Online" />
+    <div className="max-w-2xl mx-auto w-full glass-panel p-8 rounded-3xl">
+      <div className="flex items-center gap-4 mb-8">
+        <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-brand-cyan to-brand-purple flex items-center justify-center text-2xl font-bold shadow-[0_0_20px_rgba(112,0,255,0.3)] overflow-hidden border-2 border-white/20">
+          {user.photoUrl ? (
+             <img src={user.photoUrl} alt="User" className="w-full h-full object-cover" />
+          ) : (
+             <span className="text-white">{user.name.charAt(0)}</span>
+          )}
         </div>
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{user.name}</h2>
-          {user.username && <p className="text-brand-purple dark:text-brand-cyan text-sm mb-1 font-medium">@{user.username}</p>}
-          <div className="flex items-center gap-3 mt-2">
-            <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">{user.email || 'Email not linked'}</span>
-            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border ${
-               user.plan === 'ULTRA' ? 'bg-gradient-to-r from-brand-cyan/20 to-brand-purple/20 text-brand-purple dark:text-brand-cyan border-brand-cyan/30' : 
-               'bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-white/10'
-            }`}>
-              {user.plan} MEMBER
-            </span>
+          <h2 className="text-xl font-bold text-white">{user.name}</h2>
+          {user.username && <p className="text-brand-cyan text-sm mb-1">@{user.username}</p>}
+          <p className="text-gray-400 text-sm">{user.email || 'No email linked'}</p>
+          <div className="mt-2 inline-block px-2 py-0.5 rounded text-[10px] bg-brand-cyan/10 text-brand-cyan border border-brand-cyan/20 font-bold">
+            {user.plan} MEMBER
           </div>
         </div>
       </div>
 
-      <div className="space-y-8">
-        
-        {/* ALLERGIES SECTION */}
+      <div className="space-y-6">
         <div>
-          <h3 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-4">Мои Аллергены</h3>
-          <div className="bg-gray-50 dark:bg-black/20 rounded-2xl p-4 border border-gray-200 dark:border-white/5">
-            <div className="flex flex-wrap gap-2 mb-4">
-              {user.allergies.map((tag: string) => (
-                <motion.span 
-                  layout
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  key={tag} 
-                  className="px-3 py-1.5 rounded-lg bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-sm flex items-center gap-2 group hover:border-red-500/50 hover:bg-red-500/5 transition-all text-gray-700 dark:text-gray-200 shadow-sm"
-                >
-                  {tag} 
-                  <button onClick={() => removeAllergy(tag)} className="text-gray-400 group-hover:text-red-500 transition-colors bg-transparent p-0.5 rounded-full hover:bg-red-500/10">
-                    ×
-                  </button>
-                </motion.span>
-              ))}
-              {user.allergies.length === 0 && (
-                 <span className="text-sm text-gray-400 italic py-1">Список пуст</span>
-              )}
-            </div>
-            <div className="flex gap-2 relative">
-              <input 
-                type="text" 
-                value={newAllergy}
-                onChange={(e) => setNewAllergy(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addAllergy()}
-                placeholder="Например: Глютен, Орехи..."
-                className="flex-1 bg-white dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:border-brand-purple/50 focus:ring-1 focus:ring-brand-purple/50 focus:outline-none transition-all shadow-sm"
-              />
-              <button 
-                onClick={addAllergy} 
-                disabled={!newAllergy.trim()}
-                className="px-4 py-2 bg-gray-900 dark:bg-white/10 rounded-xl text-white hover:bg-brand-purple hover:dark:bg-white/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                +
-              </button>
-            </div>
+          <h3 className="text-sm font-mono text-gray-500 uppercase mb-3">Мои Аллергены</h3>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {user.allergies.map((tag: string) => (
+              <span key={tag} className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-sm flex items-center gap-2 group hover:border-red-500/50 transition-colors text-gray-200">
+                {tag} <button onClick={() => removeAllergy(tag)} className="group-hover:text-red-500 transition-colors">×</button>
+              </span>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input 
+              type="text" 
+              value={newAllergy}
+              onChange={(e) => setNewAllergy(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && addAllergy()}
+              placeholder="Добавить аллерген..."
+              className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-brand-cyan/50 focus:outline-none"
+            />
+            <button onClick={addAllergy} className="px-4 py-2 bg-white/10 rounded-lg text-sm hover:bg-white/20 transition-colors text-white">
+              +
+            </button>
           </div>
         </div>
 
-        {/* SETTINGS SECTION */}
         <div>
-          <h3 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-4">Настройки приложения</h3>
-          <div className="space-y-3">
+          <h3 className="text-sm font-mono text-gray-500 uppercase mb-3">Настройки</h3>
+          <div className="space-y-2">
              {/* Notification Toggle */}
              <div 
-               className="flex justify-between items-center p-4 rounded-2xl bg-white dark:bg-white/5 border border-gray-100 dark:border-white/5 cursor-pointer hover:border-brand-cyan/30 transition-all shadow-sm group"
+               className="flex justify-between items-center p-3 rounded-lg bg-white/5 cursor-pointer hover:bg-white/10 transition-colors"
                onClick={() => toggleSetting('notifications')}
              >
-                <div className="flex items-center gap-4">
-                  <div className={`p-2 rounded-xl transition-colors ${user.settings.notifications ? 'bg-brand-purple/10 text-brand-purple' : 'bg-gray-100 dark:bg-white/5 text-gray-400'}`}>
-                    <Bell className="w-5 h-5" />
-                  </div>
-                  <div>
-                     <span className="block text-sm font-bold text-gray-900 dark:text-white group-hover:text-brand-purple transition-colors">Уведомления</span>
-                     <span className="text-xs text-gray-500">Получать отчеты в Telegram</span>
-                  </div>
+                <div className="flex items-center gap-3">
+                  <Send className="w-4 h-4 text-brand-purple" />
+                  <span className="text-white">Уведомления в Telegram</span>
                 </div>
-                
-                {/* Custom Toggle Switch */}
-                <div className={`w-12 h-7 rounded-full relative transition-colors duration-300 ease-in-out ${user.settings.notifications ? 'bg-brand-purple' : 'bg-gray-200 dark:bg-gray-700'}`}>
+                <div className={`w-10 h-5 rounded-full relative transition-colors ${user.settings.notifications ? 'bg-brand-cyan/40' : 'bg-white/10'}`}>
                    <motion.div 
-                     layout
                      initial={false}
-                     animate={{ x: user.settings.notifications ? 22 : 2 }}
-                     transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                     className="absolute top-1 w-5 h-5 rounded-full shadow-md bg-white" 
+                     animate={{ x: user.settings.notifications ? 20 : 2 }}
+                     className={`absolute top-1 w-3 h-3 rounded-full shadow-md ${user.settings.notifications ? 'bg-brand-cyan' : 'bg-gray-400'}`} 
                    />
                 </div>
              </div>
 
              {/* Dark Mode Toggle */}
              <div 
-               className="flex justify-between items-center p-4 rounded-2xl bg-white dark:bg-white/5 border border-gray-100 dark:border-white/5 cursor-pointer hover:border-brand-cyan/30 transition-all shadow-sm group"
+               className="flex justify-between items-center p-3 rounded-lg bg-white/5 cursor-pointer hover:bg-white/10 transition-colors"
                onClick={() => toggleSetting('darkMode')}
              >
-                <div className="flex items-center gap-4">
-                   <div className={`p-2 rounded-xl transition-colors ${user.settings.darkMode ? 'bg-blue-500/10 text-blue-400' : 'bg-orange-500/10 text-orange-500'}`}>
-                    {user.settings.darkMode ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-                  </div>
-                  <div>
-                     <span className="block text-sm font-bold text-gray-900 dark:text-white group-hover:text-brand-cyan transition-colors">Тема оформления</span>
-                     <span className="text-xs text-gray-500">{user.settings.darkMode ? 'Темная (Deep Space)' : 'Светлая (Clean Air)'}</span>
-                  </div>
+                <div className="flex items-center gap-3">
+                  {user.settings.darkMode ? <Moon className="w-4 h-4 text-brand-cyan" /> : <Sun className="w-4 h-4 text-yellow-400" />}
+                  <span className="text-white">Темная тема</span>
                 </div>
-                
-                 {/* Custom Toggle Switch */}
-                <div className={`w-12 h-7 rounded-full relative transition-colors duration-300 ease-in-out ${user.settings.darkMode ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                <div className={`w-10 h-5 rounded-full relative transition-colors ${user.settings.darkMode ? 'bg-brand-cyan/40' : 'bg-white/10'}`}>
                    <motion.div 
-                     layout
                      initial={false}
-                     animate={{ x: user.settings.darkMode ? 22 : 2 }}
-                     transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                     className="absolute top-1 w-5 h-5 rounded-full shadow-md bg-white flex items-center justify-center" 
-                   >
-                     {/* Tiny icon inside toggle for extra flair */}
-                     {user.settings.darkMode ? <Moon size={10} className="text-blue-600" /> : <Sun size={10} className="text-orange-500" />}
-                   </motion.div>
+                     animate={{ x: user.settings.darkMode ? 20 : 2 }}
+                     className={`absolute top-1 w-3 h-3 rounded-full shadow-md ${user.settings.darkMode ? 'bg-brand-cyan' : 'bg-gray-400'}`} 
+                   />
                 </div>
              </div>
 
-             {/* Locked Setting */}
-             <div className="flex justify-between items-center p-4 rounded-2xl bg-gray-50 dark:bg-white/5 border border-transparent opacity-60 cursor-not-allowed">
-                <div className="flex items-center gap-4">
-                   <div className="p-2 rounded-xl bg-gray-200 dark:bg-white/5 text-gray-400">
-                      <Lock className="w-5 h-5" />
-                   </div>
-                   <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Экспорт данных (Доступно в PRO)</span>
+             {/* Locked Setting Demo */}
+             <div className="flex justify-between items-center p-3 rounded-lg bg-white/5 opacity-50 cursor-not-allowed">
+                <div className="flex items-center gap-3">
+                   <Lock className="w-4 h-4 text-gray-500" />
+                   <span className="text-gray-400">Экспорт данных (PRO)</span>
                 </div>
              </div>
           </div>
         </div>
 
-        <div className="pt-6 border-t border-gray-200 dark:border-white/10">
-          <button onClick={onLogout} className="w-full py-3 rounded-xl border border-red-200 dark:border-red-500/20 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors flex items-center justify-center gap-2 font-medium text-sm">
+        <div className="pt-6 border-t border-white/10">
+          <button onClick={onLogout} className="flex items-center gap-2 text-red-500 hover:text-red-400 transition-colors">
             <LogOut className="w-4 h-4" /> Выйти из аккаунта
           </button>
         </div>

@@ -43,17 +43,10 @@ export default function App() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
 
-  // --- THEME MANAGEMENT ---
+  // Enforce Dark Mode
   useEffect(() => {
-    // Check user preference first, then system preference, default to dark
-    const shouldBeDark = user?.settings?.darkMode ?? true;
-    
-    if (shouldBeDark) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [user?.settings?.darkMode]);
+    document.documentElement.classList.add('dark');
+  }, []);
 
   // --- ACTIONS ---
   const handleLogin = (userData?: Partial<User>) => {
@@ -70,7 +63,7 @@ export default function App() {
       allergies: ['Арахис'],
       settings: {
         notifications: true,
-        darkMode: true // Default true
+        darkMode: true // Always true
       },
       ...userData // Override with any specific data passed
     };
@@ -84,8 +77,6 @@ export default function App() {
     setUser(null);
     localStorage.removeItem('purescan_user');
     setView('LANDING');
-    // Reset to dark mode on logout for landing page aesthetic
-    document.documentElement.classList.add('dark');
   };
 
   const handleUpdateUser = (updatedUser: User) => {
@@ -173,13 +164,13 @@ export default function App() {
               <span className="inline-block px-4 py-1.5 rounded-full border border-brand-cyan/20 bg-brand-cyan/5 text-brand-cyan text-xs font-bold tracking-widest uppercase">
                 AI Food Scanner v2.0
               </span>
-              <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.1] text-gray-900 dark:text-white">
+              <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.1] text-white">
                 Осознанное питание <br/>
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-cyan to-brand-purple">
                   начинается здесь.
                 </span>
               </h1>
-              <p className="text-gray-600 dark:text-gray-400 text-lg max-w-xl mx-auto">
+              <p className="text-gray-400 text-lg max-w-xl mx-auto">
                 Мгновенный анализ состава продуктов по фото. Узнайте правду о том, что вы едите, за 10 секунд с помощью Gemini AI.
               </p>
               <div className="flex gap-4 justify-center pt-4">
@@ -234,25 +225,25 @@ export default function App() {
   };
 
   return (
-    <main className="relative min-h-screen w-full overflow-x-hidden transition-colors duration-500 font-sans selection:bg-brand-cyan/30">
+    <main className="relative min-h-screen w-full overflow-x-hidden bg-[#050505] text-white font-sans selection:bg-brand-cyan/30">
       <GlowBackground />
       
       {/* Navigation - Floating Island Style */}
       <header className="sticky top-4 z-50 px-4 transition-all duration-300 mb-8">
         <div className="max-w-5xl mx-auto">
-          <div className="glass-panel rounded-full px-6 py-3 flex items-center justify-between backdrop-blur-xl border-white/10 dark:border-white/10 shadow-2xl">
+          <div className="glass-panel rounded-full px-6 py-3 flex items-center justify-between bg-[#0a0a0a]/80 backdrop-blur-xl border border-white/10 shadow-2xl">
             
             {/* Logo */}
             <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setView(user ? 'DASHBOARD' : 'LANDING')}>
               <div className="relative w-8 h-8 flex items-center justify-center rounded-full bg-gradient-to-tr from-brand-cyan to-brand-purple shadow-[0_0_15px_rgba(0,240,255,0.3)] group-hover:shadow-[0_0_25px_rgba(0,240,255,0.5)] transition-all">
                 <span className="font-bold text-black text-xs">AI</span>
               </div>
-              <span className="font-bold text-sm tracking-widest text-gray-800 dark:text-white/90 group-hover:text-brand-purple dark:group-hover:text-white transition-colors">PURESCAN</span>
+              <span className="font-bold text-sm tracking-widest text-white/90 group-hover:text-white transition-colors">PURESCAN</span>
             </div>
             
             {/* Navigation Tabs */}
             {user ? (
-              <nav className="flex items-center gap-1 bg-black/5 dark:bg-white/5 rounded-full p-1 border border-black/5 dark:border-white/5 shadow-inner">
+              <nav className="flex items-center gap-1 bg-white/5 rounded-full p-1 border border-white/5 shadow-inner">
                  {[
                    { id: 'DASHBOARD', label: 'Обзор', icon: LayoutDashboard },
                    { id: 'SCAN', label: 'Скан', icon: ScanLine },
@@ -265,18 +256,18 @@ export default function App() {
                        key={tab.id}
                        onClick={() => setView(tab.id as ViewState)}
                        className={`relative px-5 py-2 rounded-full transition-all duration-300 flex items-center gap-2 text-sm font-medium ${
-                         isActive ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                         isActive ? 'text-white' : 'text-gray-400 hover:text-white'
                        }`}
                      >
                        {isActive && (
                          <motion.div 
                            layoutId="nav-pill" 
-                           className="absolute inset-0 bg-white dark:bg-gradient-to-r dark:from-brand-cyan/20 dark:to-brand-purple/20 border border-black/5 dark:border-white/10 rounded-full shadow-[0_2px_10px_rgba(0,0,0,0.1)] dark:shadow-[0_0_10px_rgba(112,0,255,0.2)]"
+                           className="absolute inset-0 bg-gradient-to-r from-brand-cyan/20 to-brand-purple/20 border border-white/10 rounded-full shadow-[0_0_10px_rgba(112,0,255,0.2)]"
                            transition={{ type: "spring", bounce: 0.2, duration: 0.6 }} 
                          />
                        )}
                        <span className="relative z-10 flex items-center gap-2">
-                         <Icon className={`w-4 h-4 ${isActive ? 'text-brand-purple dark:text-brand-cyan' : 'text-gray-500'}`} />
+                         <Icon className={`w-4 h-4 ${isActive ? 'text-brand-cyan' : 'text-gray-500'}`} />
                          <span className="hidden sm:inline">{tab.label}</span>
                        </span>
                      </button>
@@ -285,7 +276,7 @@ export default function App() {
               </nav>
             ) : (
               <nav className="flex items-center gap-4">
-                 <button onClick={() => setView('SUBSCRIPTION')} className="text-xs font-bold text-gray-500 dark:text-gray-400 hover:text-brand-purple dark:hover:text-white transition-colors flex items-center gap-2 uppercase tracking-wider px-3 py-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5">
+                 <button onClick={() => setView('SUBSCRIPTION')} className="text-xs font-bold text-gray-400 hover:text-white transition-colors flex items-center gap-2 uppercase tracking-wider px-3 py-2 rounded-lg hover:bg-white/5">
                    <Crown className="w-4 h-4 text-brand-purple" />
                    <span className="hidden sm:inline">Тарифы</span>
                  </button>
@@ -314,7 +305,7 @@ export default function App() {
       </div>
 
       {/* Footer */}
-      <footer className="py-8 text-center text-[10px] text-gray-500 dark:text-gray-600 font-mono uppercase tracking-widest border-t border-black/5 dark:border-white/5 mt-12 bg-white/40 dark:bg-black/40 backdrop-blur-sm">
+      <footer className="py-8 text-center text-[10px] text-gray-600 font-mono uppercase tracking-widest border-t border-white/5 mt-12 bg-black/40 backdrop-blur-sm">
         <p>Engineered for Production &bull; React 19 &bull; Gemini 2.0 Flash</p>
       </footer>
     </main>

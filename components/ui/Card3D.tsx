@@ -62,18 +62,18 @@ const Card3D: React.FC<Card3DProps> = ({ children, className = '' }) => {
     >
       <div 
         style={{ transform: "translateZ(75px)", transformStyle: "preserve-3d" }}
-        className="glass-card rounded-2xl p-1 h-full w-full overflow-hidden relative group transition-all duration-300"
+        className="glass-card rounded-2xl p-1 h-full w-full overflow-hidden relative group"
       >
-        {/* Pulsing Glow Effect on Hover - Enhanced */}
+        {/* Pulsing Glow Effect on Hover */}
         <motion.div 
-          className="absolute inset-0 bg-gradient-to-br from-brand-cyan/40 via-brand-purple/40 to-brand-cyan/40 blur-2xl pointer-events-none"
+          className="absolute inset-0 bg-gradient-to-br from-brand-cyan/30 via-brand-purple/30 to-brand-cyan/30 blur-xl pointer-events-none"
           initial={{ opacity: 0 }}
-          animate={{ opacity: isHovered ? [0.2, 0.4, 0.2] : 0 }}
-          transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+          animate={{ opacity: isHovered ? [0.1, 0.3, 0.1] : 0 }}
+          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
         />
 
         {/* Static Ambient Gradient */}
-        <div className="absolute inset-0 bg-gradient-to-br from-brand-cyan/5 to-brand-purple/5 opacity-50 pointer-events-none group-hover:opacity-80 transition-opacity duration-500" />
+        <div className="absolute inset-0 bg-gradient-to-br from-brand-cyan/5 to-brand-purple/5 opacity-50 pointer-events-none" />
         
         <div className="relative z-10 h-full w-full p-6">
           {children}
